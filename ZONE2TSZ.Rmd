@@ -1,0 +1,171 @@
+---
+title: "zone2tsz"
+output: html_document
+date: '2022-05-11'
+---
+
+```{r}
+library(dplyr)
+library(phonTools)
+```
+
+
+```{r}
+#zone_bg = read.csv("sf12010blkgrpdistance25miles.csv")
+zone_bg = zone_bg %>% mutate(bg1 = paste0(tract1,blkgrp1),bg2=paste0(tract2,blkgrp2))
+
+blocks = read.csv("riv_blocks.csv")
+bg = ifelse(nchar(blocks$TRACTCE10) == 5, paste0("6065","0",blocks$TRACTCE10,blocks$BLKGRPCE10),
+                  paste0("6065",blocks$TRACTCE10,blocks$BLKGRPCE10))
+bg = unique(bg)
+bg=sort(bg)
+
+zone_bg = zone_bg[which(zone_bg$bg1 %in% bg & zone_bg$bg2 %in% bg),]
+zone_bg = zone_bg %>% select(bg1,bg2,mi_to_blkgrp)
+zone_bg = zone_bg %>% mutate(id = paste0(bg1,bg2))
+
+temp_bg1 = rep(bg,each=length(bg))
+temp_bg2 = rep(bg,length(bg))
+temp_bg = as.data.frame(cbind(temp_bg1,temp_bg2))
+temp_bg = temp_bg %>% mutate(id=paste0(temp_bg1,temp_bg2))
+
+riv_bg = left_join(temp_bg,zone_bg,by="id")
+riv_bg$bg1 = ifelse(is.na(riv_bg$bg1),riv_bg$temp_bg1,riv_bg$bg1)
+riv_bg$bg2 = ifelse(is.na(riv_bg$bg2),riv_bg$temp_bg2,riv_bg$bg2)
+riv_bg$mi_to_blkgrp = ifelse(is.na(riv_bg$mi_to_blkgrp),0,riv_bg$mi_to_blkgrp)
+riv_bg = riv_bg %>% select(bg1,bg2,mi_to_blkgrp)
+
+zone_index = seq(2200,2200+length(bg)-1,1)
+zone_refer =  as.data.frame(cbind(zone_index,bg))
+
+#write.csv(zone_refer,"zone_refer.csv", row.names = F)
+#write.csv(riv_bg,"riv_zone2zone.csv",row.names = F)
+```
+
+### create zone to zone table 
+```{r}
+min_dist = riv_bg %>% filter(! bg1==bg2) %>% group_by(bg1) %>% summarise(m=min(mi_to_blkgrp))
+min_dist = min_dist$m
+min_dist = rep(min_dist,each=length(min_dist))
+origin_zone = riv_bg$bg1
+dest_zone   = riv_bg$bg2
+distance = ifelse(origin_zone==dest_zone,min_dist,riv_bg$mi_to_blkgrp)
+temp_dist = riv_bg %>% group_by(bg1) %>% summarise(d = sort(mi_to_blkgrp)[8])
+temp_dist = rep(temp_dist$d,each=length(bg))
+adjacent = ifelse(origin_zone != dest_zone & distance<=temp_dist,1,0)
+
+#temp = as.data.frame(cbind(origin_zone,adjacent))
+#temp = temp %>% group_by(origin_zone) %>% summarise(one = length(which(adjacent==1)))
+
+origin_zone = as.data.frame(origin_zone)
+zone_refer$bg = as.character(zone_refer$bg)
+origin_zone = left_join(origin_zone,zone_refer,by=c("origin_zone"="bg"))
+origin_zone = origin_zone$zone_index
+
+dest_zone = as.data.frame(dest_zone)
+zone_refer$bg = as.character(zone_refer$bg)
+dest_zone = left_join(dest_zone,zone_refer,by=c("dest_zone"="bg"))
+dest_zone = dest_zone$zone_index
+```
+## write zone to zone table
+```{r}
+setwd("G:/CE-CERT/CEMDAP/test1/")
+zone2zone_generated = as.data.frame(cbind(origin_zone,dest_zone,adjacent,distance))
+zone2zone_generated=lapply(zone2zone_generated,as.numeric)
+write.table(zone2zone_generated,"zone2zone.dat",sep = "\t",col.names = F,row.names = F)
+
+```
+
+```{r}
+setwd("G:/CE-CERT/CEMDAP/TestData/")
+zone_test=read.table("zones.dat")
+
+```
+## create zone table 
+```{r}
+zoneid=unique(origin_zone)
+shopdist = rep(20,length(zoneid))
+rempacc = sample(zone_test$V3,length(zoneid),replace = T)
+rsempacc = sample(zone_test$V4,length(zoneid),replace = T)
+tempacc = sample(zone_test$V5,length(zoneid),replace = T)
+popacc = sample(zone_test$V6,length(zoneid),replace = T)
+dalcbd = rep(0,length(zoneid))
+fwcbd = rep(0,length(zoneid))
+medinc = sample(zone_test$V9,length(zoneid),replace = T)
+numhh = sample(zone_test$V10,length(zoneid),replace = T)
+numpers = sample(zone_test$V11,length(zoneid),replace = T)
+bemp = sample(zone_test$V12,length(zoneid),replace = T)
+remp = sample(zone_test$V13,length(zoneid),replace = T)
+semp = sample(zone_test$V14,length(zoneid),replace = T)
+toteemp = sample(zone_test$V15,length(zoneid),replace = T)
+parkcost = rep(0,length(zoneid))
+county = rep(121,length(zoneid))
+splluse = sample(zone_test$V18,length(zoneid),replace = T)
+internal = rep(1,length(zoneid))
+zeroplace=zeros(length(zoneid),26)
+
+
+```
+
+## this is the test for eat out.
+```{r}
+shopdist[1] = 1
+rempacc[1] = 10*max(zone_test$V3  )
+rempacc[1] = 10*max(zone_test$V3  )
+rsempacc[1] = 10*max(zone_test$V4  )
+tempacc[1] = 10*max(zone_test$V5  )
+popacc[1] = 10*max(zone_test$V6  )
+dalcbd[1] = 1
+fwcbd[1] = 1
+medinc[1] = 10*max(zone_test$V9  )
+numhh[1] = 10*max(zone_test$V10  )
+numpers[1] = 10*max(zone_test$V11  )
+bemp[1] = 10*max(zone_test$V12  )
+remp[1] = 10*max(zone_test$V13  )
+semp[1] = 10*max(zone_test$V14  )
+toteemp[1] = 10*max(zone_test$V15  )
+
+```
+
+## write zones table
+```{r}
+setwd("G:/CE-CERT/CEMDAP/test1/")
+zones_generated = as.data.frame(cbind(zoneid,shopdist,rempacc,rsempacc,tempacc,popacc,dalcbd,fwcbd,medinc,numhh,numpers,bemp,
+                            remp,semp,toteemp,parkcost,county,splluse,internal,zeroplace))
+zones_generated=lapply(zones_generated,as.numeric)
+
+write.table(zones_generated,"zones.dat",sep = "\t",col.names = F,row.names = F)
+
+```
+## create los table 
+```{r}
+origin=origin_zone
+dest = dest_zone
+samezone = ifelse(origin==dest,1,0)
+adjacent = adjacent
+distance=distance
+autoivtt = distance/10*60
+autoovtt = rep(3,length(origin))
+travail = rep(0,length(origin))
+trivtt = rep(0,length(origin))
+trovtt = rep(0,length(origin))
+trcost = rep(0,length(origin))
+autocost = rnorm(length(origin),mean = 1.5,sd=1)
+place1= rep(5,length(origin))
+place2 = rep(10,length(origin))
+
+los_generated = as.data.frame(cbind(origin,dest,samezone,adjacent,distance,autoivtt,autoovtt,travail,trivtt,trovtt,trcost,autocost,place1,place2))
+
+```
+
+##
+```{r}
+setwd("G:/CE-CERT/CEMDAP/test1/")
+los_generated=lapply(los_generated,as.numeric)
+
+write.table(los_generated,"losoffpk.dat",sep = "\t",col.names = F,row.names = F)
+write.table(los_generated,"lospeakam.dat",sep = "\t",col.names = F,row.names = F)
+write.table(los_generated,"lospeakpm.dat",sep = "\t",col.names = F,row.names = F)
+
+```
+

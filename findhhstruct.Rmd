@@ -1,0 +1,78 @@
+---
+title: "find_hhstruct"
+output: html_document
+date: '2022-05-03'
+---
+
+```{r}
+insertRow <- function(existingDF, newrow, r) {
+  existingDF[seq(r+1,nrow(existingDF)+1),] <- existingDF[seq(r,nrow(existingDF)),]
+  existingDF[r,] <- newrow
+  existingDF
+}
+```
+
+###test
+```{r}
+setwd("F:/CE-CERT/CEMDAP/test1/")
+### for hhid 3 to test hhstruct 12
+h_test = h
+h_test[3,]$V5 = 3
+h_test[3,]$V6 = 12
+h_test[3,]$V27 = 3
+p_test = p[which(p$V1==3),][4,]
+p_test$V2=5
+p_test=insertRow(p,p_test,sum(h$V10[1:3])+1)
+################
+
+###########for hhid 1 to test hhstruct 16
+h_test[1,]$V5=0
+h_test[1,]$V2=3
+h_test[1,]$V6=16
+h_test[1,]$V7 = 2
+h_test[1,]$V16 = 0
+h_test[1,]$V17 = 1
+h_test[1,]$V19 = 0
+h_test[1,]$V21 = 3
+h_test[1,]$V26 = 0
+p_test[3,]=p_test[2,]
+p_test[3,]$V2 = 3
+################
+
+# #########for hhid 10 to test hhstruct 19 failed
+# h_test[10,]$V2 = 3
+# h_test[10,]$V5 = 3
+# h_test[10,]$V6 = 19
+# h_test[10,]$V7 = 2
+# h_test[10,]$V16=0
+# h_test[10,]$V17=1
+# h_test[10,]$V27=1
+# p_test[39,]=p_test[38,]
+# p_test[39,]$V2=3
+# p_test[39,5] = 0
+# p_test[39,10]=0
+# p_test[39,15]=0
+# p_test[39,36]=0
+
+# ##### for hhid 2 to test hhstruct 3
+# h_test[2,]$V2 = 1
+# h_test[2,]$V3 = 1
+# h_test[2,]$V5 = 2
+# h_test[2,]$V6 = 3
+# h_test[2,]$V7 = 0
+# h_test[2,]$V11 = 0
+# h_test[2,]$V14 = 0
+# h_test[2,]$V17 = 1
+# h_test[2,]$V16 = 0
+# h_test[2,]$V18 = 1
+# h_test[2,]$V19 = 0
+# h_test[2,]$V20 = 1
+# h_test[2,]$V27 = 2
+# 
+# p_test[5,] = p_test[6,]
+# p_test[5,]$V2 = 2
+
+write.table(h,"households.dat",sep = "\t",col.names = F,row.names = F)
+write.table(p_test,"persons.dat",sep = "\t",col.names = F,row.names = F)
+```
+

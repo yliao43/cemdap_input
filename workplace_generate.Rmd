@@ -1,0 +1,39 @@
+---
+title: "work place"
+output: html_document
+date: '2022-05-13'
+---
+
+```{r}
+workod = read.csv("riverside_od.csv")
+workod$w_geocode = as.character(workod$w_geocode)
+workod$h_geocode = as.character(workod$h_geocode)
+workod$w_geocode = substr(workod$w_geocode,1,11)
+workod$h_geocode = substr(workod$h_geocode,1,11)
+
+
+```
+
+```{r}
+center = read.csv("centerpoint.csv")
+center = center %>% select(GEOID,INTPTLAT,INTPTLON)
+center$GEOID = as.character(center$GEOID)
+
+zone_refer = read.csv("zone_refer.csv")
+```
+
+
+```{r}
+work_in_riv = workod[which(workod$w_geocode %in% bg),]
+home_in_riv = workod[which(workod$h_geocode %in% bg),]
+wh_in_riv = workod[which(workod$w_geocode %in% bg & workod$h_geocode %in% bg),]
+job_by_zone = work_in_riv %>% group_by(w_geocode) %>% summarise(job = sum(S000))
+job_by_zone = job_by_zone[order(job_by_zone$job),]
+zone_refer$bg = as.character(zone_refer$bg)
+job_by_zone = left_join(job_by_zone,zone_refer,by=c("w_geocode"="bg"))
+temp = left_join(job_by_zone, center,by=c("w_geocode"="GEOID"))
+#write.csv(temp,"temp.csv",row.names = F)
+work_place = job_by_zone$w_geocode[dim(job_by_zone)[1]-20:dim(job_by_zone)[1]]
+
+```
+

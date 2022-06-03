@@ -1,0 +1,301 @@
+---
+title: "create_cemdap_input"
+output: html_document
+date: '2022-04-29'
+---
+
+## import library
+```{r}
+library(dplyr)
+```
+
+## read cemdap test data
+```{r}
+setwd("G:/CE-CERT/CEMDAP/TestData/")
+h = read.table("households.dat")
+p = read.table('persons.dat')
+```
+
+## read riverside demorgraphic data
+```{r setup, include=FALSE}
+setwd("G:/CE-CERT/CEMDAP/Riv_data")
+house = read.csv("households.csv")
+person = read.csv("people.csv")
+#person = person[order(person$hh_id),]
+#hhid = unique(person$hh_id)
+#house =  as.data.frame(cbind(house,hhid))
+#write.csv(house,'households.csv',row.names = F)
+#write.csv(person,'people.csv', row.names = F)
+
+blocks = read.csv("riv_blocks.csv")
+bg = ifelse(nchar(blocks$TRACTCE10) == 5, paste0("6065","0",blocks$TRACTCE10,blocks$BLKGRPCE10),
+                  paste0("6065",blocks$TRACTCE10,blocks$BLKGRPCE10))
+bg = unique(bg)
+
+house$bg = ifelse(nchar(house$tract) == 5, paste0(house$state,"0",house$county,"0",house$tract,house$block.group),
+                  paste0(house$state,"0",house$county,house$tract,house$block.group))
+
+house = house[which(house$bg %in% bg),]
+person = person[which(person$hh_id %in% house$hhid),]
+```
+
+## household and person selected
+```{r}
+n = 111383 ## choose n households
+house1 = house[1:n,]
+m=sum(house1$NP)
+person1 = person[1:m,]
+```
+
+# read zone id
+```{r}
+zone_refer = read.csv("zone_refer.csv")
+zone_refer$bg=as.character(zone_refer$bg)
+house1 = left_join(house1,zone_refer,by="bg")
+```
+
+
+# for household # part I
+```{r}
+hhid = house1$hhid
+nadult = person1 %>% group_by(hh_id) %>% summarise(adult=sum(AGEP>=18)) 
+nadult = nadult$adult
+nveh = house1$VEH
+#hometsz = sample(seq(2000,2200,1),n,replace = T)
+nchild = person1 %>% group_by(hh_id) %>% summarise(child=sum(AGEP<18))
+nchild = nchild$child
+```
+
+# for household # part II
+```{r}
+hhstr_direct=c("40","10","11","20","22","24","30","50")
+#hhstr_direct=c("31")
+hhstr_indirect=c("41","42","43","51","53","21","23","31","32","33")
+hhstr = c(hhstr_direct,hhstr_indirect)
+npattern = paste0(nadult,nchild)
+#plot(as.data.frame(table(npattern)))
+#write.csv(as.data.frame(table(npattern)),"npattern.csv",row.names = F)
+test = house[which(npattern %in% hhstr),]
+sum(test$NP)
+```
+
+# for hhstruct = 31 only
+```{r}
+change21 = which(npattern=="31")
+change21_id=house1[change21,]$hhid
+
+person11=person1[which(person1$hh_id %in% change21_id),]
+person1 = person1[-which(person1$hh_id %in% change21_id),]
+
+person11 = person11[-which(person11$AGEP<18),]
+
+person11$RELP = ifelse(person11$RELP %in% c(2,6),10,person$RELP)
+```
+
+# for INDIRECT hhstruct 
+```{r}
+change = which(npattern %in% hhstr_indirect)
+change_id=house1[change,]$hhid
+
+person12=person1[which(person1$hh_id %in% change_id),]
+person1 = person1[-which(person1$hh_id %in% change_id),]
+
+
+person12$RELP = ifelse(person12$RELP %in% c(2,6),10,person$RELP)
+
+person12$AGEP = ifelse(person12$AGEP<18,18,person12$AGEP)
+```
+
+#------------above is the process to 1. test useful hhstruct. 2. split direct households and indirect households
+# for households part III, consider direct households
+```{r}
+house_direct = house1[which(npattern %in% hhstr),]
+house_direct_id = house_direct$hhid
+person1 = as.data.frame(rbind(person1,person11,person12))
+person1 = person1[order(person1$hh_id),]
+person_direct = person1[which(person1$hh_id %in% house_direct_id),]
+```
+
+# hh structure generation
+```{r}
+hhstr_direct=c("10","11","20","21","23","24","22","30","31","32","50","60","70","80","40")
+hhstruct_standard = as.data.frame(matrix(c(1,2,9,10,12,13,15,16,17,18,16,16,16,16,16,hhstr_direct),byrow = F,ncol = 2))
+names(hhstruct_standard)=c("hhstr","pattern")
+```
+
+# PART I
+```{r}
+hhid = house_direct$hhid
+nadult = person_direct %>% group_by(hh_id) %>% summarise(adult=sum(AGEP>=18)) 
+nadult = nadult$adult
+nveh = house_direct$VEH
+#hometsz = sample(h$V4,length(hhid),replace = T)
+hometsz = house_direct$zone_index
+nchild = person_direct %>% group_by(hh_id) %>% summarise(child=sum(AGEP<18))
+nchild = nchild$child
+npers = nadult + nchild
+temp1 = as.data.frame(cbind(nadult,nchild))
+temp1$pattern = paste0(nadult,nchild)
+temp1 = left_join(temp1,hhstruct_standard, by="pattern")
+struct = temp1$hhstr
+number_employed_adult = person_direct %>% group_by(hh_id) %>% summarise(nemadult = sum(AGEP>=18 & ESR %in% c(1,2,4,5)))
+number_employed_adult=number_employed_adult$nemadult
+naunemp = nadult - number_employed_adult
+#table(naunemp)
+multadult = ifelse(nadult>=2,1,0)
+vehbylic = ifelse(nadult==0,0,nveh/nadult)
+sperson = ifelse(struct==1,1,0)
+sparent = rep(1,dim(house_direct)[1])
+couple = ifelse(struct==9,1,0)
+nuclear = ifelse(struct %in% c(2,10,12,13,17,18),1,0)
+ohhtype = ifelse(struct %in% c(15,16),1,0)
+numlic = nadult
+zeroch = ifelse(nchild==0,1,0)
+onech = ifelse(nchild==1,1,0)
+twoch = ifelse(nchild>1,1,0)
+naemp = number_employed_adult
+zeroemp = ifelse(naemp == 0,1,0)
+oneemp = ifelse(naemp == 1,1,0)
+twoemp = ifelse(naemp>1,1,0)
+nastu = nadult-naunemp-naemp
+ncnotstu = person_direct %>% group_by(hh_id) %>% summarise(nc=sum(AGEP<18 & SCH %in% c(NA,1)))
+ncnotstu=ncnotstu$nc
+ncstu = nchild - ncnotstu
+ownhome = ifelse(naemp == 1,1,1)
+sfdunit = rep(1,dim(house_direct)[1])
+sfaunit = rep(1,dim(house_direct)[1])
+aptunit = rep(1,dim(house_direct)[1])
+othunit = rep(1,dim(house_direct)[1])
+hhincome = house_direct$HINCP
+```
+
+
+## combine variables into households table
+```{r}
+setwd("G:/CE-CERT/CEMDAP/test1/")
+households_generated =  as.data.frame(cbind(hhid,nadult,nveh,hometsz,nchild,struct,naunemp,hhincome,zeroch,npers,
+                                            multadult,vehbylic,sperson,sparent,couple,nuclear,ohhtype,numlic,onech,
+                                            twoch,naemp,zeroemp,oneemp,twoemp,nastu,ncnotstu,ncstu,ownhome,sfdunit,
+                                            sfaunit,aptunit,othunit))
+households_generated[is.na(households_generated)] = 0
+households_generated=lapply(households_generated,as.numeric)
+dim(households_generated)
+write.table(households_generated,"households.dat",sep = "\t",col.names = F,row.names = F)
+### the warning is OK
+```
+
+```{r}
+
+```
+
+## direct persons
+```{r}
+hhid = person_direct$hh_id
+perid = unlist(lapply(npers, seq))
+aemp = ifelse(person_direct$AGEP>=18 & person_direct$ESR %in% c(1,2,4,5),1,0)
+stu = ifelse(person_direct$AGEP<18 & person_direct$SCH %in% c(2,3),1,0)
+Lic = ifelse(person_direct$AGEP>=18,1,0)
+#worktsz = sample(hometsz,length(hhid),replace = T)
+#worktsz = sample(house_direct$zone_index,length(hhid),replace = T)
+#worktsz = rep(2200,length(hhid))
+worktsz = ifelse(aemp==1,sample(job_by_zone$zone_index,length(hhid),prob = job_by_zone$job,replace = T),-99)
+
+#schooltsz = sample(hometsz,length(hhid),replace = T)
+#schooltsz = sample(house_direct$zone_index,length(hhid),replace = T)
+schooltsz = rep(hometsz,npers)
+schooltsz = ifelse(stu==1,schooltsz,-99)
+female = ifelse(person_direct$person_sex == 'male',0,1)
+age = person_direct$AGEP
+parent = ifelse(person_direct$RELP == 6,1,0)
+cauc =ifelse(person_direct$race == "white",1,1)
+afamer = ifelse(person_direct$race == "white",0,0)
+asian = ifelse(person_direct$race == "white",0,0)
+hisp = ifelse(person_direct$race == "white",0,0)
+othrace = ifelse(person_direct$race == "white",0,0)
+male = ifelse(person_direct$person_sex == 'male',1,0)
+
+hhid_temp = house_direct$hhid
+temp = as.data.frame(cbind(hhid_temp,vehbylic))
+hhid = as.data.frame(hhid)
+temp1 = left_join(hhid,temp,by=c('hhid'='hhid_temp'))
+
+pvehavbl = ifelse(stu == 1, 0, temp1$vehbylic)
+
+presch = ifelse(person_direct$AGEP<18 & person_direct$SCHL == 2,1,0)
+kgtog4 = ifelse(person_direct$AGEP<18 & person_direct$SCHL %in% c(3,4,5,6,7),1,0)
+g5tog8 = ifelse(person_direct$AGEP<18 & person_direct$SCHL %in% c(8,9,10,11),1,0)
+g9orhigh = ifelse(person_direct$AGEP<18 & person_direct$SCHL >= 12,1,0)
+g8orlow = ifelse(person_direct$AGEP>=18 & person_direct$SCHL <= 11,1,0)
+g9tog12 = ifelse(person_direct$AGEP>=18 & person_direct$SCHL %in% c(12,13,14,15),1,0)
+highsch = ifelse(person_direct$AGEP>=18 & person_direct$SCHL == 16,1,0)
+somecol = ifelse(person_direct$AGEP>=18 & person_direct$SCH==18,1,0)
+assobach = ifelse(person_direct$AGEP>=18 & person_direct$SCHL %in% c(20,21),1,0)
+mastphd = ifelse(person_direct$AGEP>=18 & person_direct$SCHL %in% c(22,23,24),1,0)
+
+lowage = ifelse(person_direct$AGEP <=5,1,0)
+nosch = ifelse(person_direct$AGEP<18 & person_direct$SCHL %in% c(1, NA) ,1,0)
+cnotstu = ifelse(person_direct$AGEP<18 & person_direct$SCH %in% c(1,NA),1,0)
+
+
+hhid_temp = house_direct$hhid
+temp = as.data.frame(cbind(hhid_temp,naemp))
+hhid = as.data.frame(hhid)
+temp1 = left_join(hhid,temp,by=c('hhid'='hhid_temp'))
+
+loage1 = ifelse(lowage == 1 & temp1$naemp == 1, 1,0)
+loage2 = ifelse(lowage == 1 & temp1$naemp == 2, 1,0)
+
+
+income = ifelse(is.na(person_direct$PERNP),0, person_direct$PERNP/1000)
+
+hhid_temp = house_direct$hhid
+temp = as.data.frame(cbind(hhid_temp,hhincome))
+hhid = as.data.frame(hhid)
+temp1 = left_join(hhid,temp,by=c('hhid'='hhid_temp'))
+incomef = ifelse(temp1$hhincome == 0, 0, income/temp1$hhincome)
+
+Wdurlow = ifelse(person_direct$WKHP<20,1,0)
+wdurmed = ifelse(person_direct$WKHP<40 & person_direct$WKHP>=20,1,0)
+wdurhigh = ifelse(person_direct$WKHP>=40,1,0)
+highglex = ifelse(person_direct$WKHP < 20, 1,0)
+medflex = ifelse(person_direct$WKHP<40 & person_direct$WKHP>=20,1,0)
+lowflex = ifelse(person_direct$WKHP>=40,1,0)
+
+emptype1 = ifelse(aemp ==1 & loage1==1,0,0)
+emptype2 = ifelse(aemp ==1 & loage1==1,0,0)
+emptype3 = ifelse(aemp ==1 & loage1==1,0,0)
+emptype4 = ifelse(aemp ==1 & loage1==1,0,0)
+emptype5 = ifelse(aemp ==1 & loage1==1,1,0)
+emptype6 = ifelse(aemp ==1 & loage1==1,1,0)
+  
+
+mother = ifelse(parent == 1 & female == 1, 1,0)
+father = ifelse(parent == 1 & male == 1 ,1, 0)
+
+aunemp = ifelse(person_direct$AGEP>=18 & aemp==0,1,0)
+
+adchild = ifelse(person_direct$AGEP>=18 & person_direct$RELP == 2,1,0) 
+adult = ifelse(person_direct$AGEP>=18,1,0)
+wkhrs = person_direct$WKHP
+
+placeholder = ifelse(loage1==1,0,0)
+
+```
+
+### combine all the person attr to table
+```{r}
+setwd("G:/CE-CERT/CEMDAP/test1/")
+persons_generated =  as.data.frame(cbind(hhid,perid,aemp,stu,Lic,worktsz,schooltsz,female,age,parent,cauc,afamer,asian,male,
+                                         pvehavbl,highglex,presch,kgtog4,g5tog8,g9orhigh,lowage,loage1,loage2,somecol,
+                                         assobach,mastphd,income,incomef,Wdurlow,wdurmed,emptype1,emptype2,emptype3,emptype4,
+                                         emptype5,mother,father,nosch,cnotstu,aunemp,adchild,adult,hisp,othrace,g8orlow,
+                                         g9tog12,highsch,wkhrs,wdurhigh,medflex,lowflex,emptype6,placeholder,placeholder,
+                                         placeholder,placeholder,placeholder,placeholder,placeholder))
+persons_generated[is.na(persons_generated)] = 0
+persons_generated=lapply(persons_generated,as.numeric)
+dim(persons_generated)
+write.table(persons_generated,"persons.dat",sep = "\t",col.names = F,row.names = F)
+```
+
+
+
